@@ -68,4 +68,4 @@ GTEST_COLOR=1 ./tests/wotsplus_test --gtest_color=yes
 
 ## License
 
-AGPL-3.0, see LICENSE
+AGPL-3.0, see COPYING
