@@ -46,6 +46,16 @@ target_link_libraries(hashsigs
     OpenSSL::Crypto
 )
 
+# CLI tool
+add_executable(hashsigs_cli
+    src/hashsigs_cli.cpp
+)
+
+target_link_libraries(hashsigs_cli
+    PRIVATE
+    hashsigs
+)
+
 # Install rules
 install(TARGETS hashsigs
     LIBRARY DESTINATION lib
