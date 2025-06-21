@@ -36,7 +36,6 @@ include_directories(
 # Library target
 add_library(hashsigs
     src/wotsplus.cpp
-    src/public_key.cpp
     src/keccak.cpp
 )
 

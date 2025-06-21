@@ -1,17 +1,15 @@
 #pragma once
 
 #include "constants.hpp"
-#include "public_key.hpp"
 #include <array>
 #include <functional>
-#include <optional>
 #include <vector>
 
 namespace hashsigs {
 
 /// HashFn is a function type that takes a byte array and returns a 32-byte hash
-using HashFn = std::function<std::array<uint8_t, constants::HASH_LEN>(
-    const std::vector<uint8_t> &)>;
+using HashFn =
+    std::function<std::array<uint8_t, 32>(const std::vector<uint8_t> &)>;
 
 /// WOTSPlus implements the WOTS+ one-time signature scheme
 /// This is a stateless signature scheme that can only be used once per key pair
@@ -20,31 +18,29 @@ using HashFn = std::function<std::array<uint8_t, constants::HASH_LEN>(
 class WOTSPlus {
 public:
   /// Create a new WOTSPlus instance with the specified hash function
-  explicit WOTSPlus(HashFn hash_fn);
+  explicit WOTSPlus(HashFn hash_fn, size_t hash_len = 32,
+                    size_t chain_len = 16);
 
-  /// Generate a public key from a private key
-  /// The public key consists of two parts:
-  /// 1. The public seed used to generate randomization elements
-  /// 2. The hash of all public key segments concatenated together
-  PublicKey
-  get_public_key(const std::array<uint8_t, constants::HASH_LEN> &private_key);
-
-  /// Generate a key pair from a private seed
-  /// Returns a pair containing the public key and private key
-  std::pair<PublicKey, std::array<uint8_t, constants::HASH_LEN>>
+  /// Generate a key pair from a private seed and public seed
+  /// (protocol-compatible) Returns a pair containing the public key and
+  /// the private key
+  std::pair<std::array<uint8_t, constants::PUBLIC_KEY_SIZE>,
+            std::array<uint8_t, constants::HASH_LEN>>
   generate_key_pair(
-      const std::array<uint8_t, constants::HASH_LEN> &private_seed);
+      const std::vector<uint8_t> &private_seed,
+      const std::array<uint8_t, constants::HASH_LEN> &public_seed);
 
-  /// Sign a message with a private key
+  /// Sign a message with a private key and public seed (protocol-compatible)
   /// Returns a vector of signature segments
   std::vector<std::array<uint8_t, constants::HASH_LEN>>
   sign(const std::array<uint8_t, constants::HASH_LEN> &private_key,
+       const std::array<uint8_t, constants::HASH_LEN> &public_seed,
        const std::array<uint8_t, constants::MESSAGE_LEN> &message);
 
   /// Verify a signature
   /// Returns true if the signature is valid, false otherwise
   bool verify(
-      const PublicKey &public_key,
+      const std::array<uint8_t, constants::PUBLIC_KEY_SIZE> &public_key,
       const std::array<uint8_t, constants::MESSAGE_LEN> &message,
       const std::vector<std::array<uint8_t, constants::HASH_LEN>> &signature);
 
