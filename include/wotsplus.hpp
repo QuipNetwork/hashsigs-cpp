@@ -23,9 +23,9 @@ public:
 
   /// Generate a key pair from a private seed and public seed
   /// (protocol-compatible) Returns a pair containing the public key and
-  /// the private key
+  /// the private key (vector of secret key segments)
   std::pair<std::array<uint8_t, constants::PUBLIC_KEY_SIZE>,
-            std::array<uint8_t, constants::HASH_LEN>>
+            std::vector<std::array<uint8_t, constants::HASH_LEN>>>
   generate_key_pair(
       const std::vector<uint8_t> &private_seed,
       const std::array<uint8_t, constants::HASH_LEN> &public_seed);
@@ -33,7 +33,7 @@ public:
   /// Sign a message with a private key and public seed (protocol-compatible)
   /// Returns a vector of signature segments
   std::vector<std::array<uint8_t, constants::HASH_LEN>>
-  sign(const std::array<uint8_t, constants::HASH_LEN> &private_key,
+  sign(const std::vector<std::array<uint8_t, constants::HASH_LEN>> &private_key,
        const std::array<uint8_t, constants::HASH_LEN> &public_seed,
        const std::array<uint8_t, constants::MESSAGE_LEN> &message);
 

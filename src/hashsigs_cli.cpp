@@ -113,7 +113,14 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    auto private_key = hex_to_bytes(argv[2]);
+    // Parse private key as vector of arrays
+    std::vector<std::array<uint8_t, 32>> private_key;
+    auto priv_bytes_vec = hex_to_bytes(argv[2]);
+    for (size_t i = 0; i < priv_bytes_vec.size(); i += 32) {
+      std::array<uint8_t, 32> segment;
+      std::copy_n(priv_bytes_vec.begin() + i, 32, segment.begin());
+      private_key.push_back(segment);
+    }
     auto public_seed = hex_to_bytes(argv[3]);
     auto message = hex_to_bytes(argv[4]);
 

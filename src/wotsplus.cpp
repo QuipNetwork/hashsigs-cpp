@@ -104,35 +104,59 @@ std::vector<uint8_t> WOTSPlus::compute_message_hash_chain_indexes(
 }
 
 std::pair<std::array<uint8_t, constants::PUBLIC_KEY_SIZE>,
-          std::array<uint8_t, constants::HASH_LEN>>
+          std::vector<std::array<uint8_t, constants::HASH_LEN>>>
 WOTSPlus::generate_key_pair(
     const std::vector<uint8_t> &private_seed,
     const std::array<uint8_t, constants::HASH_LEN> &public_seed) {
-  // Combine private_seed and public_seed
-  std::vector<uint8_t> combined_seed_input;
-  combined_seed_input.insert(combined_seed_input.end(), private_seed.begin(),
-                             private_seed.end());
-  combined_seed_input.insert(combined_seed_input.end(), public_seed.begin(),
-                             public_seed.end());
-
-  // Hash the combined seed to get the private key
-  auto private_key = hash_fn_(combined_seed_input);
-
-  // Generate randomization elements
+  // 1. Compute privateKey = hash(private_seed || public_seed)
+  std::vector<uint8_t> public_seed_vec(public_seed.begin(), public_seed.end());
+  std::vector<uint8_t> combined_seed(private_seed);
+  combined_seed.insert(combined_seed.end(), public_seed.begin(),
+                       public_seed.end());
+  std::array<uint8_t, 32> privateKey_arr = hash_fn_(combined_seed);
+  // 2. Generate randomization elements from public_seed
   auto randomization_elements = generate_randomization_elements(public_seed);
+  std::vector<uint8_t> functionKey_vec(randomization_elements[0].begin(),
+                                       randomization_elements[0].end());
+  // 3. Set functionKey = randomization_elements[0]
+  const auto &functionKey = randomization_elements[0];
+  // 4. For each signature chunk, compute secretKeySegment = hash(functionKey ||
+  // prf(privateKey, i+1))
+  std::vector<uint8_t> prf0_input;
+  prf0_input.push_back(0x03);
+  prf0_input.insert(prf0_input.end(), privateKey_arr.begin(),
+                    privateKey_arr.end());
+  prf0_input.push_back(0x00);
+  prf0_input.push_back(0x01);
+  auto prf0_arr = hash_fn_(prf0_input);
+  std::vector<uint8_t> prf0(prf0_arr.begin(), prf0_arr.end());
+  std::vector<uint8_t> concat0(functionKey_vec);
+  concat0.insert(concat0.end(), prf0.begin(), prf0.end());
+  auto secretKeySegment0_arr = hash_fn_(concat0);
+  std::vector<uint8_t> secretKeySegment0(secretKeySegment0_arr.begin(),
+                                         secretKeySegment0_arr.end());
 
-  // Generate public key segments
   std::vector<uint8_t> public_key_segments;
   public_key_segments.reserve(constants::NUM_SIGNATURE_CHUNKS *
                               constants::HASH_LEN);
 
+  std::vector<std::array<uint8_t, constants::HASH_LEN>> private_key_segments;
+  private_key_segments.reserve(constants::NUM_SIGNATURE_CHUNKS);
+
   for (size_t i = 0; i < constants::NUM_SIGNATURE_CHUNKS; ++i) {
-    auto secret_key_segment = prf(private_key, i);
+    // prf(privateKey, i+1)
+    auto prf_out = prf(privateKey_arr, static_cast<uint16_t>(i + 1));
+    // functionKey || prf_out
+    std::vector<uint8_t> concat(functionKey.begin(), functionKey.end());
+    concat.insert(concat.end(), prf_out.begin(), prf_out.end());
+    auto secret_key_segment = hash_fn_(concat);
+    // Chain as before
     auto public_key_segment = chain(secret_key_segment, randomization_elements,
                                     0, constants::CHAIN_LEN - 1);
     public_key_segments.insert(public_key_segments.end(),
                                public_key_segment.begin(),
                                public_key_segment.end());
+    private_key_segments.push_back(secret_key_segment);
   }
 
   auto public_key_hash = hash_fn_(public_key_segments);
@@ -142,13 +166,13 @@ WOTSPlus::generate_key_pair(
   std::copy(public_key_hash.begin(), public_key_hash.end(),
             public_key_bytes.begin() + constants::HASH_LEN);
 
-  return {public_key_bytes, private_key};
+  return {public_key_bytes, private_key_segments};
 }
 
-std::vector<std::array<uint8_t, constants::HASH_LEN>>
-WOTSPlus::sign(const std::array<uint8_t, constants::HASH_LEN> &private_key,
-               const std::array<uint8_t, constants::HASH_LEN> &public_seed,
-               const std::array<uint8_t, constants::MESSAGE_LEN> &message) {
+std::vector<std::array<uint8_t, constants::HASH_LEN>> WOTSPlus::sign(
+    const std::vector<std::array<uint8_t, constants::HASH_LEN>> &private_key,
+    const std::array<uint8_t, constants::HASH_LEN> &public_seed,
+    const std::array<uint8_t, constants::MESSAGE_LEN> &message) {
   // Generate randomization elements using the provided public_seed
   auto randomization_elements = generate_randomization_elements(public_seed);
 
@@ -160,12 +184,8 @@ WOTSPlus::sign(const std::array<uint8_t, constants::HASH_LEN> &private_key,
   signature.reserve(constants::NUM_SIGNATURE_CHUNKS);
 
   for (size_t i = 0; i < constants::NUM_SIGNATURE_CHUNKS; ++i) {
-    // The private_key is now the root, so we need to expand it
-    auto secret_key_segment = prf(private_key, i);
-
-    // Chain hash the secret key segment `indexes[i]` times
     auto signature_segment =
-        chain(secret_key_segment, randomization_elements, 0, indexes[i]);
+        chain(private_key[i], randomization_elements, 0, indexes[i]);
     signature.push_back(signature_segment);
   }
 
