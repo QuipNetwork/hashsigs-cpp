@@ -55,8 +55,8 @@ WOTSPlus::chain(const std::array<uint8_t, constants::HASH_LEN> &prev_chain_out,
                 uint16_t index, uint16_t steps) {
   std::array<uint8_t, constants::HASH_LEN> chain_out = prev_chain_out;
 
-  for (uint16_t i = 0; i < steps; ++i) {
-    auto xored = xor_arrays(chain_out, randomization_elements[index + i]);
+  for (uint16_t i = 1; i <= steps; ++i) {
+    auto xored = xor_arrays(chain_out, randomization_elements[i + index]);
     chain_out = hash_fn_(std::vector<uint8_t>(xored.begin(), xored.end()));
   }
 
